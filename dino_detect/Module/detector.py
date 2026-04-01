@@ -26,7 +26,6 @@ class Detector(object):
     def __init__(self,
                  model_type: str,
                  model_file_path: Union[str, None]=None,
-                 resize_size: int = 256,
                  dtype = 'auto',
                  device: str = 'cpu') -> None:
         self.device = device
@@ -105,7 +104,6 @@ class Detector(object):
 
         self.transform = v2.Compose([
             v2.ToImage(),
-            v2.Resize((resize_size, resize_size), antialias=True),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(
                 mean=(0.485, 0.456, 0.406),
