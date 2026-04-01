@@ -2,23 +2,31 @@ import os
 import torch
 from PIL import Image
 from typing import Union
-from torchvision import transforms
+from torchvision.transforms import v2
 
 from dino_detect.Model.vision_transformer import (
-    vit_giant2,
     vit_large,
     vit_base,
     vit_small,
-    vit_so400m,
     vit_huge2,
     vit_7b,
 )
+
+DINOV3_COMMON_KWARGS = {
+    'patch_size': 16,
+    'n_storage_tokens': 4,
+    'norm_layer': 'layernormbf16',
+    'layerscale_init': 1e-5,
+    'mask_k_bias': True,
+    'pos_embed_rope_rescale_coords': 2,
+}
 
 
 class Detector(object):
     def __init__(self,
                  model_type: str,
                  model_file_path: Union[str, None]=None,
+                 resize_size: int = 256,
                  dtype = 'auto',
                  device: str = 'cpu') -> None:
         self.device = device
@@ -28,60 +36,57 @@ class Detector(object):
             self.dtype = dtype
 
         model_configs = {
-            'giant2': {
-                'factory': vit_giant2,
+            'small': {
+                'factory': vit_small,
                 'kwargs': {
-                    'patch_size': 16,
-                    'n_storage_tokens': 4,
-                    'ffn_layer': 'swiglu',
+                    **DINOV3_COMMON_KWARGS,
+                    'ffn_layer': 'mlp',
                 },
             },
-            'large': {
-                'factory': vit_large,
+            'small+': {
+                'factory': vit_small,
                 'kwargs': {
-                    'patch_size': 16,
-                    'n_storage_tokens': 4,
-                    'ffn_layer': 'mlp',
+                    **DINOV3_COMMON_KWARGS,
+                    'ffn_ratio': 6,
+                    'ffn_layer': 'swiglu',
                 },
             },
             'base': {
                 'factory': vit_base,
                 'kwargs': {
-                    'patch_size': 16,
-                    'n_storage_tokens': 4,
+                    **DINOV3_COMMON_KWARGS,
                     'ffn_layer': 'mlp',
                 },
             },
-            'small': {
-                'factory': vit_small,
+            'large': {
+                'factory': vit_large,
                 'kwargs': {
-                    'patch_size': 16,
-                    'n_storage_tokens': 4,
+                    **DINOV3_COMMON_KWARGS,
                     'ffn_layer': 'mlp',
                 },
             },
-            'so400m': {
-                'factory': vit_so400m,
+            'large+': {
+                'factory': vit_large,
                 'kwargs': {
-                    'patch_size': 16,
-                    'n_storage_tokens': 4,
+                    **DINOV3_COMMON_KWARGS,
+                    'ffn_ratio': 6,
                     'ffn_layer': 'swiglu',
                 },
             },
-            'huge2': {
+            'huge+': {
                 'factory': vit_huge2,
                 'kwargs': {
-                    'patch_size': 16,
-                    'n_storage_tokens': 4,
-                    'ffn_layer': 'mlp',
+                    **DINOV3_COMMON_KWARGS,
+                    'ffn_ratio': 6,
+                    'ffn_layer': 'swiglu',
                 },
             },
             '7b': {
                 'factory': vit_7b,
                 'kwargs': {
-                    'patch_size': 16,
-                    'n_storage_tokens': 4,
-                    'ffn_layer': 'swiglu',
+                    **DINOV3_COMMON_KWARGS,
+                    'qkv_bias': False,
+                    'ffn_layer': 'swiglu64',
                 },
             },
         }
@@ -98,13 +103,14 @@ class Detector(object):
         self.model = self.model.to(self.device, dtype=self.dtype)
         self.model.eval()
 
-        self.transform = transforms.Compose([
-            transforms.Resize((518, 518)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
+        self.transform = v2.Compose([
+            v2.ToImage(),
+            v2.Resize((resize_size, resize_size), antialias=True),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(
+                mean=(0.485, 0.456, 0.406),
+                std=(0.229, 0.224, 0.225),
+            ),
         ])
 
         if model_file_path is not None:
@@ -118,7 +124,7 @@ class Detector(object):
             print('\t model_file_path:', model_file_path)
             return False
 
-        model_state_dict = torch.load(model_file_path, map_location='cpu')
+        model_state_dict = torch.load(model_file_path, map_location='cpu', weights_only=True)
         self.model.load_state_dict(model_state_dict, strict=True)
 
         print('[INFO][Detector::loadModel]')
@@ -132,7 +138,8 @@ class Detector(object):
 
         image_tensor = image_tensor.to(self.device, dtype=self.dtype)
 
-        dino_features_dict = self.model.forward_features(image_tensor)
+        with torch.autocast(self.device, dtype=self.dtype):
+            dino_features_dict = self.model.forward_features(image_tensor)
 
         assert isinstance(dino_features_dict, dict)
 
