@@ -1,4 +1,5 @@
-pip install -U torch torchvision torchaudio
+pip install torch torchvision torchaudio \
+  --index-url https://download.pytorch.org/whl/cu124
 
-pip install -U opencv-python omegaconf torchmetrics fvcore iopath \
-  xformers submitit cuml-cu12
+pip install opencv-python omegaconf torchmetrics submitit \
+  ftfy regex scikit-learn termcolor

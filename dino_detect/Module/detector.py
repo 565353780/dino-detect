@@ -4,7 +4,15 @@ from PIL import Image
 from typing import Union
 from torchvision import transforms
 
-from dino_v2_detect.Model.vision_transformer import vit_giant2, vit_large, vit_base, vit_small
+from dino_detect.Model.vision_transformer import (
+    vit_giant2,
+    vit_large,
+    vit_base,
+    vit_small,
+    vit_so400m,
+    vit_huge2,
+    vit_7b,
+)
 
 
 class Detector(object):
@@ -19,54 +27,73 @@ class Detector(object):
         else:
             self.dtype = dtype
 
-        if model_type == 'giant2':
-            # 1536
-            self.model = vit_giant2(
-                patch_size=14,
-                num_register_tokens=4,
-                img_size=518,
-                ffn_layer='swiglufused',
-                block_chunks=0,
-                interpolate_antialias=True,
-                interpolate_offset=0.0,
-                init_values=1.0,
+        model_configs = {
+            'giant2': {
+                'factory': vit_giant2,
+                'kwargs': {
+                    'patch_size': 16,
+                    'n_storage_tokens': 4,
+                    'ffn_layer': 'swiglu',
+                },
+            },
+            'large': {
+                'factory': vit_large,
+                'kwargs': {
+                    'patch_size': 16,
+                    'n_storage_tokens': 4,
+                    'ffn_layer': 'mlp',
+                },
+            },
+            'base': {
+                'factory': vit_base,
+                'kwargs': {
+                    'patch_size': 16,
+                    'n_storage_tokens': 4,
+                    'ffn_layer': 'mlp',
+                },
+            },
+            'small': {
+                'factory': vit_small,
+                'kwargs': {
+                    'patch_size': 16,
+                    'n_storage_tokens': 4,
+                    'ffn_layer': 'mlp',
+                },
+            },
+            'so400m': {
+                'factory': vit_so400m,
+                'kwargs': {
+                    'patch_size': 16,
+                    'n_storage_tokens': 4,
+                    'ffn_layer': 'swiglu',
+                },
+            },
+            'huge2': {
+                'factory': vit_huge2,
+                'kwargs': {
+                    'patch_size': 16,
+                    'n_storage_tokens': 4,
+                    'ffn_layer': 'mlp',
+                },
+            },
+            '7b': {
+                'factory': vit_7b,
+                'kwargs': {
+                    'patch_size': 16,
+                    'n_storage_tokens': 4,
+                    'ffn_layer': 'swiglu',
+                },
+            },
+        }
+
+        if model_type not in model_configs:
+            raise ValueError(
+                f"Unsupported model_type '{model_type}'. "
+                f"Choose from: {list(model_configs.keys())}"
             )
-        elif model_type == 'large':
-            # 1024
-            self.model = vit_large(
-                patch_size=14,
-                num_register_tokens=4,
-                img_size=518,
-                ffn_layer='mlp',
-                block_chunks=0,
-                interpolate_antialias=True,
-                interpolate_offset=0.0,
-                init_values=1.0,
-            )
-        elif model_type == 'base':
-            # 768
-            self.model = vit_base(
-                patch_size=14,
-                num_register_tokens=4,
-                img_size=518,
-                ffn_layer='mlp',
-                block_chunks=0,
-                interpolate_antialias=True,
-                interpolate_offset=0.0,
-                init_values=1.0,
-            )
-        elif model_type == 'small':
-            # 384
-            self.model = vit_small(
-                patch_size=14,
-                num_register_tokens=4,
-                img_size=518,
-                ffn_layer='mlp',
-                block_chunks=0,
-                interpolate_antialias=True,
-                interpolate_offset=0.0,
-                init_values=1.0,
-            )
+
+        config = model_configs[model_type]
+        self.model = config['factory'](**config['kwargs'])
 
         self.model = self.model.to(self.device, dtype=self.dtype)
         self.model.eval()
@@ -109,11 +136,10 @@ class Detector(object):
 
         assert isinstance(dino_features_dict, dict)
 
-        x_norm = dino_features_dict["x_norm"]
-        # x_norm_clstoken = dino_features_dict["x_norm_clstoken"]
-        # x_norm_regtokens = dino_features_dict["x_norm_regtokens"]
-        # x_norm_patchtokens = dino_features_dict["x_norm_patchtokens"]
-        # x = dino_features_dict["x_prenorm"]
+        cls_token = dino_features_dict["x_norm_clstoken"].unsqueeze(1)
+        storage_tokens = dino_features_dict["x_storage_tokens"]
+        patch_tokens = dino_features_dict["x_norm_patchtokens"]
+        x_norm = torch.cat([cls_token, storage_tokens, patch_tokens], dim=1)
 
         x_norm = x_norm.to(image_device, dtype=image_dtype)
 

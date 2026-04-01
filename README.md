@@ -1,4 +1,10 @@
-# DINO-v2 Detect
+# DINO Detect
+
+## Version
+
+```bash
+DINOv3
+```
 
 ## Download
 
