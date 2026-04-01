@@ -24,11 +24,13 @@ DINOV3_COMMON_KWARGS = {
 
 
 class Detector(object):
-    def __init__(self,
-                 model_type: str,
-                 model_file_path: Union[str, None]=None,
-                 dtype = 'auto',
-                 device: str = 'cpu') -> None:
+    def __init__(
+        self,
+        model_type: str,
+        model_file_path: Union[str, None]=None,
+        dtype = 'auto',
+        device: str = 'cpu',
+    ) -> None:
         self.device = device
         if dtype == 'auto':
             self.dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
