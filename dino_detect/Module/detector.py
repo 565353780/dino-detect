@@ -1,6 +1,7 @@
 import os
+import cv2
 import torch
-from PIL import Image
+import numpy as np
 from typing import Union
 from torchvision.transforms import v2
 
@@ -103,8 +104,6 @@ class Detector(object):
         self.model.eval()
 
         self.transform = v2.Compose([
-            v2.ToImage(),
-            v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(
                 mean=(0.485, 0.456, 0.406),
                 std=(0.229, 0.224, 0.225),
@@ -131,10 +130,21 @@ class Detector(object):
 
     @torch.no_grad()
     def detect(self, image_tensor: torch.Tensor) -> torch.Tensor:
-        image_dtype = image_tensor.dtype
-        image_device = image_tensor.device
+        """
+        Args:
+            image_tensor: [B, H, W, 3], float32, range [0, 1]
+        Returns:
+            x_norm: [B, N, C], same dtype and device as input
+        """
+        input_dtype = image_tensor.dtype
+        input_device = image_tensor.device
+
+        # [B, H, W, 3] -> [B, 3, H, W]
+        image_tensor = image_tensor.permute(0, 3, 1, 2)
 
         image_tensor = image_tensor.to(self.device, dtype=self.dtype)
+
+        image_tensor = self.transform(image_tensor)
 
         with torch.autocast(self.device, dtype=self.dtype):
             dino_features_dict = self.model.forward_features(image_tensor)
@@ -146,7 +156,7 @@ class Detector(object):
         patch_tokens = dino_features_dict["x_norm_patchtokens"]
         x_norm = torch.cat([cls_token, storage_tokens, patch_tokens], dim=1)
 
-        x_norm = x_norm.to(image_device, dtype=image_dtype)
+        x_norm = x_norm.to(input_device, dtype=input_dtype)
 
         return x_norm
 
@@ -158,11 +168,17 @@ class Detector(object):
             print('\t image_file_path:', image_file_path)
             return None
 
-        image = Image.open(image_file_path)
+        image_bgr = cv2.imread(image_file_path, cv2.IMREAD_COLOR)
+        if image_bgr is None:
+            print('[ERROR][Detector::detectFile]')
+            print('\t failed to read image!')
+            print('\t image_file_path:', image_file_path)
+            return None
 
-        image = image.convert('RGB')
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
-        image_tensor = self.transform(image).unsqueeze(0)
+        # [H, W, 3] -> [1, H, W, 3], float32, range [0, 1]
+        image_tensor = torch.from_numpy(image_rgb.astype(np.float32) / 255.0).unsqueeze(0)
 
         dino_feature = self.detect(image_tensor)
 

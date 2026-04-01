@@ -27,7 +27,7 @@ def demo():
 
     for _ in trange(100):
         dino_feature = detector.detect(
-            torch.randn([3, 3, 512, 512], dtype=torch.float32, device="cpu")
+            torch.rand([3, 512, 512, 3], dtype=torch.float32, device="cpu")
         )
 
     print("dino_feature:")
