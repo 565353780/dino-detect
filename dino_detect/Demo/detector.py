@@ -9,15 +9,14 @@ from dino_detect.Module.detector import Detector
 
 
 def demo():
+    home = os.environ['HOME']
+
     model_type = "huge+"
-    model_file_path = (
-        os.environ["HOME"] + "/chLi/Model/DINOv3/dinov3_vitl16_pretrain.pth"
-    )
-    model_file_path = None
+    model_file_path = f'{home}/chLi/Model/DINOv3/dinov3_vith16plus_pretrain_lvd1689m-7c1da9a5.pth'
     dtype = "auto"
     device = "cuda:0"
 
-    image_file_path = "/home/chli/chLi2/Dataset/CapturedImage/ShapeNet/02691156/10155655850468db78d106ce0a280f87/y_5_x_3.png"
+    image_file_path = f'{home}/tmp/test.png'
     if not os.path.exists(image_file_path):
         H, W = 512, 512  # 可以根据实际需要调整大小
         noise_img = (np.random.rand(H, W, 3) * 255).astype(np.uint8)
@@ -28,7 +27,7 @@ def demo():
 
     for _ in trange(100):
         dino_feature = detector.detect(
-            torch.randn([3, 3, 518, 518], dtype=torch.float32, device="cpu")
+            torch.randn([3, 3, 512, 512], dtype=torch.float32, device="cpu")
         )
 
     print("dino_feature:")
