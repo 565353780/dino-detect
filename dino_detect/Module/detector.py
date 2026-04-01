@@ -148,7 +148,9 @@ class Detector(object):
 
         image_tensor = self.transform(image_tensor)
 
-        with torch.autocast(self.device, dtype=self.dtype):
+        device_type = self.device if isinstance(self.device, str) else self.device.type
+        device_type = device_type.split(":")[0]
+        with torch.autocast(device_type, dtype=self.dtype):
             dino_features_dict = self.model.forward_features(image_tensor)
 
         assert isinstance(dino_features_dict, dict)
