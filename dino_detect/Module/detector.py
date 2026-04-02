@@ -104,6 +104,7 @@ class Detector(object):
 
         self.model = self.model.to(self.device, dtype=self.dtype)
         self.model.eval()
+        self.model.requires_grad_(False)
 
         self.transform = v2.Compose([
             v2.Normalize(
