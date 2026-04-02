@@ -112,6 +112,7 @@ class Detector(object):
             ),
         ])
 
+        self.is_valid = False
         if model_file_path is not None:
             self.loadModel(model_file_path)
         return
@@ -121,6 +122,7 @@ class Detector(object):
             print('[ERROR][Detector::loadModel]')
             print('\t model file not exist!')
             print('\t model_file_path:', model_file_path)
+            self.is_valid = False
             return False
 
         model_state_dict = torch.load(model_file_path, map_location='cpu', weights_only=True)
@@ -128,6 +130,7 @@ class Detector(object):
 
         print('[INFO][Detector::loadModel]')
         print('\t model loaded from:', model_file_path)
+        self.is_valid = True
         return True
 
     @torch.no_grad()
