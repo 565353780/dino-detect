@@ -1,10 +1,14 @@
 import os
-import cv2
 import torch
-import numpy as np
 from typing import Union
-from torchvision.transforms import v2
 
+from dino_detect.Method.detect import (
+    createTransform,
+    preprocessImages,
+    postprocessFeatures,
+    detectFile,
+    toPCAImages,
+)
 from dino_detect.Model.vision_transformer import (
     vit_large,
     vit_base,
@@ -106,12 +110,7 @@ class Detector(object):
         self.model.eval()
         self.model.requires_grad_(False)
 
-        self.transform = v2.Compose([
-            v2.Normalize(
-                mean=(0.485, 0.456, 0.406),
-                std=(0.229, 0.224, 0.225),
-            ),
-        ])
+        self.transform = createTransform()
 
         self.is_valid = False
         if model_file_path is not None:
@@ -142,15 +141,9 @@ class Detector(object):
         Returns:
             x_norm: [B, N, C], same dtype and device as input
         """
-        input_dtype = image_tensor.dtype
-        input_device = image_tensor.device
-
-        # [B, H, W, 3] -> [B, 3, H, W]
-        image_tensor = image_tensor.permute(0, 3, 1, 2)
-
-        image_tensor = image_tensor.to(self.device, dtype=self.dtype)
-
-        image_tensor = self.transform(image_tensor)
+        image_tensor, input_dtype, input_device = preprocessImages(
+            image_tensor, self.transform, self.device, self.dtype,
+        )
 
         device_type = self.device if isinstance(self.device, str) else self.device.type
         device_type = device_type.split(":")[0]
@@ -164,30 +157,13 @@ class Detector(object):
         patch_tokens = dino_features_dict["x_norm_patchtokens"]
         x_norm = torch.cat([cls_token, storage_tokens, patch_tokens], dim=1)
 
-        x_norm = x_norm.to(input_device, dtype=input_dtype)
-
-        return x_norm
+        return postprocessFeatures(x_norm, input_device, input_dtype)
 
     @torch.no_grad()
     def detectFile(self, image_file_path: str) -> Union[torch.Tensor, None]:
-        if not os.path.exists(image_file_path):
-            print('[ERROR][Detector::detectFile]')
-            print('\t image file not exist!')
-            print('\t image_file_path:', image_file_path)
-            return None
+        return detectFile(self, image_file_path)
 
-        image_bgr = cv2.imread(image_file_path, cv2.IMREAD_COLOR)
-        if image_bgr is None:
-            print('[ERROR][Detector::detectFile]')
-            print('\t failed to read image!')
-            print('\t image_file_path:', image_file_path)
-            return None
-
-        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-
-        # [H, W, 3] -> [1, H, W, 3], float32, range [0, 1]
-        image_tensor = torch.from_numpy(image_rgb.astype(np.float32) / 255.0).unsqueeze(0)
-
-        dino_feature = self.detect(image_tensor)
-
-        return dino_feature
+    @staticmethod
+    @torch.no_grad()
+    def toPCAImages(dino_feats: torch.Tensor):
+        return toPCAImages(dino_feats)
