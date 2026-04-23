@@ -47,6 +47,9 @@ class DINOv2Detector:
             repo_dir,
             local_files_only=True,
         ).to(device=self.device, dtype=self.dtype)
+        print('[INFO][DINOv2Detector::loadModel]')
+        print('\t model loaded from:', model_file_path)
+
         self.model.eval()
         self.model.requires_grad_(False)
 
