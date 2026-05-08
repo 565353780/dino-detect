@@ -137,7 +137,7 @@ class Detector(object):
     def detect(self, image_tensor: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            image_tensor: [B, H, W, 3], float32, range [0, 1]
+            image_tensor: [B, H, W, 3], float32, range [0, 1], RGB order
         Returns:
             x_norm: [B, N, C], same dtype and device as input
         """
